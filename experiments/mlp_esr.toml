@@ -16,5 +16,5 @@ hidden_layers = [16]      # neurons per hidden layer: [16] = 1 layer, [32, 16] =
 activation = "relu"
 learning_rate = 0.001
 alpha = 0.0001            # penalty on large weights (higher = smoother model)
-max_iter = 2000           # training passes over the data
+max_iter = 5000           # training passes over the data (converges at ~3500)
 seed = 2026
