@@ -10,9 +10,8 @@ outputs/baseline.json and outputs/baseline.png (predicted vs real).
 import json
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, r2_score
 
 from jigbench.features import OUTPUT_DIR
 from jigbench.split import assign
@@ -35,11 +34,11 @@ def load() -> pd.DataFrame:
 
 
 def evaluate(y_true, y_pred) -> dict:
-    return dict(
-        MAE=mean_absolute_error(y_true, y_pred),
-        MAE_pct=100 * mean_absolute_error(y_true, y_pred) / y_true.mean(),
-        R2=r2_score(y_true, y_pred),
-    )
+    """MAE: mean absolute error. R2: 1 - squared error / squared error of guessing the mean."""
+    y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
+    mae = np.mean(np.abs(y_true - y_pred))
+    r2 = 1 - np.sum((y_true - y_pred) ** 2) / np.sum((y_true - y_true.mean()) ** 2)
+    return dict(MAE=mae, MAE_pct=100 * mae / y_true.mean(), R2=r2)
 
 
 def plot_predictions(ax, target, sets, metrics, title):
@@ -63,8 +62,8 @@ if __name__ == "__main__":
     results = json.loads((OUTPUT_DIR / "split.json").read_text())
     fig, axes = plt.subplots(1, len(BASELINES), figsize=(11, 5))
     for ax, (target, feature) in zip(axes, BASELINES.items()):
-        model = LinearRegression().fit(train[[feature]], train[target])
-        sets = {name: (d[target], model.predict(d[[feature]]))
+        slope, intercept = np.polyfit(train[feature], train[target], 1)  # least-squares line
+        sets = {name: (d[target], slope * d[feature] + intercept)
                 for name, d in (("train", train), ("val", val))}
         results[target] = dict(feature=feature, **{n: evaluate(*s) for n, s in sets.items()})
         for name in sets:

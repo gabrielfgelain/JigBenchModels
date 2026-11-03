@@ -1,4 +1,5 @@
-# First perceptron: estimate the bus ESR from the measured features.
+# Perceptron (MLP) to estimate the bus ESR from the measured features.
+# Run with `python -m jigbench.train experiments/mlp_esr.toml`.
 # Copy this file and change the values to try another configuration.
 
 [data]
@@ -14,8 +15,10 @@ features = [
 
 [model]
 hidden_layers = [16]      # neurons per hidden layer: [16] = 1 layer, [32, 16] = 2 layers
-activation = "relu"
-learning_rate = 0.001
-alpha = 0.0001            # penalty on large weights (higher = smoother model)
-max_iter = 5000           # training passes over the data (converges at ~3500)
+activation = "relu"       # relu, sigmoid or tanh
+learning_rate = 0.001     # size of each weight adjustment
+weight_decay = 0.0001     # penalty on large weights (higher = smoother model)
+batch_size = 200          # tests per weight adjustment
+epochs = 1000             # passes over the training set
+print_every = 50          # epochs between progress lines
 seed = 2026

@@ -1,8 +1,10 @@
-"""Train a perceptron (MLP) from an experiment file and evaluate it on train and validation.
+"""Train a perceptron (MLP) with PyTorch, writing out every step of the training loop.
 
 Run with `python -m jigbench.train experiments/<name>.toml`; writes
-outputs/experiments/<name>/results.json (config, dataset version, metrics) and
-predictions.png. The test set is not used here.
+outputs/experiments/<name>/results.json and predictions.png. The test set is not used here.
+
+At every epoch the error is computed on train AND validation, so the plot shows when the
+model starts to memorize the training tests (train keeps falling, validation stops).
 """
 
 import json
@@ -11,41 +13,83 @@ import tomllib
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from sklearn.neural_network import MLPRegressor
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
+import torch
+from torch import nn
 
-from jigbench.baseline import evaluate, load, plot_predictions
+from jigbench.baseline import COLORS, evaluate, load, plot_predictions
 from jigbench.features import OUTPUT_DIR
 
+ACTIVATIONS = {"relu": nn.ReLU, "sigmoid": nn.Sigmoid, "tanh": nn.Tanh}
 
-def build_model(cfg: dict):
-    """Features are scaled to mean 0 / std 1 (fitted on train only), then the MLP."""
-    return make_pipeline(
-        StandardScaler(),
-        MLPRegressor(
-            hidden_layer_sizes=tuple(cfg["hidden_layers"]),
-            activation=cfg["activation"],
-            learning_rate_init=cfg["learning_rate"],
-            alpha=cfg["alpha"],
-            max_iter=cfg["max_iter"],
-            random_state=cfg["seed"],
-        ),
-    )
+
+def build_model(n_inputs: int, hidden_layers: list, activation: str) -> nn.Sequential:
+    """Layers in sequence: linear (weights) -> activation -> ... -> one linear output."""
+    layers, size = [], n_inputs
+    for n in hidden_layers:
+        layers += [nn.Linear(size, n), ACTIVATIONS[activation]()]
+        size = n
+    layers.append(nn.Linear(size, 1))
+    return nn.Sequential(*layers)
 
 
 if __name__ == "__main__":
     config_file = Path(sys.argv[1])
     with open(config_file, "rb") as f:
         config = tomllib.load(f)
-    target, features = config["data"]["target"], config["data"]["features"]
+    cfg, target, features = config["model"], config["data"]["target"], config["data"]["features"]
+    torch.manual_seed(cfg["seed"])
 
     data = load()
     train, val = data[data.split == "train"], data[data.split == "val"]
-    model = build_model(config["model"]).fit(train[features], train[target])
 
-    sets = {name: (d[target], model.predict(d[features]))
-            for name, d in (("train", train), ("val", val))}
+    # 1. Scale inputs and target to mean 0 / std 1, using train statistics only,
+    #    so every feature has the same weight at the start.
+    x_mean, x_std = train[features].mean(), train[features].std()
+    y_mean, y_std = train[target].mean(), train[target].std()
+
+    def to_tensors(d):
+        x = torch.tensor(((d[features] - x_mean) / x_std).values, dtype=torch.float32)
+        y = torch.tensor(((d[target] - y_mean) / y_std).values, dtype=torch.float32)
+        return x, y.unsqueeze(1)
+
+    x_train, y_train = to_tensors(train)
+    x_val, y_val = to_tensors(val)
+
+    # 2. The model, the error to minimize (mean squared error) and the optimizer that
+    #    adjusts the weights from that error (Adam).
+    model = build_model(len(features), cfg["hidden_layers"], cfg["activation"])
+    loss_fn = nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=cfg["learning_rate"],
+                                 weight_decay=cfg["weight_decay"])
+
+    # 3. Training loop: one epoch = one pass over all training tests, in small batches.
+    history = {"train": [], "val": []}
+    for epoch in range(1, cfg["epochs"] + 1):
+        model.train()
+        order = torch.randperm(len(x_train))
+        for i in range(0, len(order), cfg["batch_size"]):
+            batch = order[i:i + cfg["batch_size"]]
+            prediction = model(x_train[batch])              # forward: compute the output
+            loss = loss_fn(prediction, y_train[batch])      # how wrong it is
+            optimizer.zero_grad()
+            loss.backward()                                 # how each weight affects the error
+            optimizer.step()                                # adjust the weights a little
+
+        model.eval()
+        with torch.no_grad():                               # only measure, no adjusting
+            history["train"].append(loss_fn(model(x_train), y_train).item())
+            history["val"].append(loss_fn(model(x_val), y_val).item())
+        if epoch % cfg["print_every"] == 0 or epoch == 1:
+            print(f"epoch {epoch:5d}   loss train {history['train'][-1]:.4f}   "
+                  f"val {history['val'][-1]:.4f}", flush=True)
+
+    # 4. Predictions back in mOhm and the same metrics as the baseline.
+    def predict(d):
+        x, _ = to_tensors(d)
+        with torch.no_grad():
+            return model(x).squeeze(1).numpy() * y_std + y_mean
+
+    sets = {name: (d[target], predict(d)) for name, d in (("train", train), ("val", val))}
     metrics = {name: evaluate(*s) for name, s in sets.items()}
     for name, r in metrics.items():
         print(f"{name:5s}  MAE {r['MAE']:6.1f} ({r['MAE_pct']:4.1f}%)  R2 {r['R2']:.3f}")
@@ -53,10 +97,17 @@ if __name__ == "__main__":
     out = OUTPUT_DIR / "experiments" / config_file.stem
     out.mkdir(parents=True, exist_ok=True)
     results = json.loads((OUTPUT_DIR / "split.json").read_text())
-    results.update(config=config, iterations=model[-1].n_iter_, metrics=metrics)
+    results.update(config=config, metrics=metrics, loss_history=history)
     (out / "results.json").write_text(json.dumps(results, indent=2))
 
-    fig, ax = plt.subplots(figsize=(5.5, 5))
-    plot_predictions(ax, target, sets, metrics, f"MLP {config['model']['hidden_layers']}")
+    fig, (ax, ax_loss) = plt.subplots(1, 2, figsize=(11, 5))
+    plot_predictions(ax, target, sets, metrics, f"MLP {cfg['hidden_layers']}")
+    for name, values in history.items():
+        ax_loss.plot(range(1, len(values) + 1), values, color=COLORS[name], lw=2, label=name)
+    ax_loss.set(yscale="log", xlabel="Epoch", ylabel="Loss (scaled MSE, log)",
+                title="Training: error per epoch")
+    ax_loss.grid(color="#e5e4e0", lw=0.6)
+    ax_loss.spines[["top", "right"]].set_visible(False)
+    ax_loss.legend(frameon=False)
     fig.tight_layout()
     fig.savefig(out / "predictions.png", dpi=150)
