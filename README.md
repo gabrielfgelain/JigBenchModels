@@ -12,8 +12,11 @@ git clone <this-repo-url>
 cd JigBenchModels
 python -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-lock.txt
 ```
+
+`requirements.txt` lists the main packages; `requirements-lock.txt` pins every package
+(`pip freeze`) and is the one to install from to reproduce results exactly.
 
 ## Data
 
