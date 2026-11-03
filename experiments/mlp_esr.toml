@@ -8,8 +8,9 @@ features = [
     "Asw", "Asw_band", "HF_rms",             # switching ripple (~5 kHz) on the bus
     "Vdc", "Vdc_pp",                         # bus voltage
     "I1", "V1", "Im_rms", "Vm_rms",          # motor current and voltage
-    "power_W", "rpm",                        # operating point
+    "rpm",                                   # speed command, known by the inverter
 ]
+# The load power setpoint (power_W) is not used: an embedded estimator would not know it.
 
 [model]
 hidden_layers = [16]      # neurons per hidden layer: [16] = 1 layer, [32, 16] = 2 layers
