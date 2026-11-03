@@ -1,0 +1,5 @@
+# Copy this file to config.toml and set the path to your local JigBenchDataset clone.
+# config.toml is not committed: each machine has its own.
+
+[dataset]
+path = "C:/Users/gabri/Projetos/JigBenchDataset"

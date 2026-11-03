@@ -10,3 +10,6 @@ data/
 .vscode/
 .idea/
 Thumbs.db
+
+# Machine-specific settings
+config.toml
