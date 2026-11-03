@@ -1,0 +1,20 @@
+# First perceptron: estimate the bus ESR from the measured features.
+# Copy this file and change the values to try another configuration.
+
+[data]
+target = "ESR_mOhm"
+features = [
+    "A120", "A240", "A360", "A6f",           # rectifier ripple and 6f1 on the bus
+    "Asw", "Asw_band", "HF_rms",             # switching ripple (~5 kHz) on the bus
+    "Vdc", "Vdc_pp",                         # bus voltage
+    "I1", "V1", "Im_rms", "Vm_rms",          # motor current and voltage
+    "power_W", "rpm",                        # operating point
+]
+
+[model]
+hidden_layers = [16]      # neurons per hidden layer: [16] = 1 layer, [32, 16] = 2 layers
+activation = "relu"
+learning_rate = 0.001
+alpha = 0.0001            # penalty on large weights (higher = smoother model)
+max_iter = 2000           # training passes over the data
+seed = 2026

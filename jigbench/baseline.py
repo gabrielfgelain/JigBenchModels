@@ -42,17 +42,16 @@ def evaluate(y_true, y_pred) -> dict:
     )
 
 
-def plot_predictions(ax, target, sets, results):
+def plot_predictions(ax, target, sets, metrics, title):
     """Predicted vs real; points on the dashed line are perfect predictions."""
     for name, (y_true, y_pred) in sets.items():
-        r2 = results[target][name]["R2"]
         ax.scatter(y_true, y_pred, s=14, alpha=0.5, color=COLORS[name], linewidths=0,
-                   label=f"{name} (R² {r2:.2f})")
+                   label=f"{name} (R² {metrics[name]['R2']:.2f})")
     lims = [min(ax.get_xlim()[0], ax.get_ylim()[0]), max(ax.get_xlim()[1], ax.get_ylim()[1])]
     ax.plot(lims, lims, "--", color="#52514e", lw=1, label="ideal")
     ax.set(xlim=lims, ylim=lims, aspect="equal",
            xlabel=f"Real {LABELS[target]}", ylabel=f"Predicted {LABELS[target]}",
-           title=f"{LABELS[target]} from {results[target]['feature']}")
+           title=title)
     ax.grid(color="#e5e4e0", lw=0.6)
     ax.spines[["top", "right"]].set_visible(False)
     ax.legend(frameon=False, loc="upper left")
@@ -72,7 +71,7 @@ if __name__ == "__main__":
             r = results[target][name]
             print(f"{target:9s} <- {feature:12s} {name:5s}  "
                   f"MAE {r['MAE']:6.1f} ({r['MAE_pct']:4.1f}%)  R2 {r['R2']:.3f}")
-        plot_predictions(ax, target, sets, results)
+        plot_predictions(ax, target, sets, results[target], f"{LABELS[target]} from {feature}")
     (OUTPUT_DIR / "baseline.json").write_text(json.dumps(results, indent=2))
     fig.tight_layout()
     fig.savefig(OUTPUT_DIR / "baseline.png", dpi=150)
