@@ -1,0 +1,12 @@
+# Python environment
+.venv/
+__pycache__/
+*.pyc
+
+# Data comes from JigBenchDataset (DVC), never committed here
+data/
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
