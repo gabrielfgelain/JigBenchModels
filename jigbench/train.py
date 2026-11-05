@@ -19,7 +19,9 @@ from torch import nn
 from jigbench.baseline import COLORS, evaluate, load, plot_predictions
 from jigbench.features import OUTPUT_DIR
 
-ACTIVATIONS = {"relu": nn.ReLU, "sigmoid": nn.Sigmoid, "tanh": nn.Tanh, "elu": nn.ELU, "selu": nn.SELU}
+ACTIVATIONS = {"linear": nn.Identity, "relu": nn.ReLU, "sigmoid": nn.Sigmoid,
+               "tanh": nn.Tanh, "elu": nn.ELU, "selu": nn.SELU}
+OPTIMIZERS = {"adam": torch.optim.Adam, "rmsprop": torch.optim.RMSprop}
 
 
 def build_model(n_inputs: int, hidden_layers: list, activation: str) -> nn.Sequential:
@@ -32,14 +34,10 @@ def build_model(n_inputs: int, hidden_layers: list, activation: str) -> nn.Seque
     return nn.Sequential(*layers)
 
 
-if __name__ == "__main__":
-    config_file = Path(sys.argv[1])
-    with open(config_file, "rb") as f:
-        config = tomllib.load(f)
+def train(config: dict, data, verbose: bool = True) -> dict:
+    """Train one model from a config; returns metrics, loss history and predictions."""
     cfg, target, features = config["model"], config["data"]["target"], config["data"]["features"]
     torch.manual_seed(cfg["seed"])
-
-    data = load()
     train, val = data[data.split == "train"], data[data.split == "val"]
 
     # 1. Scale inputs and target to mean 0 / std 1, using train statistics only,
@@ -56,11 +54,11 @@ if __name__ == "__main__":
     x_val, y_val = to_tensors(val)
 
     # 2. The model, the error to minimize (mean squared error) and the optimizer that
-    #    adjusts the weights from that error (Adam).
+    #    adjusts the weights from that error (Adam by default).
     model = build_model(len(features), cfg["hidden_layers"], cfg["activation"])
     loss_fn = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg["learning_rate"],
-                                 weight_decay=cfg["weight_decay"])
+    optimizer = OPTIMIZERS[cfg.get("optimizer", "adam")](
+        model.parameters(), lr=cfg["learning_rate"], weight_decay=cfg["weight_decay"])
 
     # 3. Training loop: one epoch = one pass over all training tests, in small batches.
     history = {"train": [], "val": []}
@@ -79,21 +77,22 @@ if __name__ == "__main__":
         with torch.no_grad():                               # only measure, no adjusting
             history["train"].append(loss_fn(model(x_train), y_train).item())
             history["val"].append(loss_fn(model(x_val), y_val).item())
-        if epoch % cfg["print_every"] == 0 or epoch == 1:
-            print(f"epoch {epoch:5d}   loss train {history['train'][-1]:.4f}   "
-                  f"val {history['val'][-1]:.4f}", flush=True)
+        line = (f"epoch {epoch:5d}   loss train {history['train'][-1]:.4f}   "
+                f"val {history['val'][-1]:.4f}")
+        if verbose and (epoch % cfg["print_every"] == 0 or epoch == 1):
+            print(line, flush=True)
 
         # Early stopping (optional): stop when the validation loss improved less than
         # min_improvement (e.g. 1%) over the last `patience` epochs.
         patience = cfg.get("patience")
         if patience and epoch > patience:
             if history["val"][-1] > (1 - cfg["min_improvement"]) * history["val"][-1 - patience]:
-                print(f"epoch {epoch:5d}   loss train {history['train'][-1]:.4f}   "
-                      f"val {history['val'][-1]:.4f}   (stopped: val improved less than "
-                      f"{100 * cfg['min_improvement']:.0f}% in {patience} epochs)", flush=True)
+                if verbose:
+                    print(f"{line}   (stopped: val improved less than "
+                          f"{100 * cfg['min_improvement']:.0f}% in {patience} epochs)", flush=True)
                 break
 
-    # 4. Predictions back in mOhm and the same metrics as the baseline.
+    # 4. Predictions back in the target units and the same metrics as the baseline.
     def predict(d):
         x, _ = to_tensors(d)
         with torch.no_grad():
@@ -101,6 +100,17 @@ if __name__ == "__main__":
 
     sets = {name: (d[target], predict(d)) for name, d in (("train", train), ("val", val))}
     metrics = {name: evaluate(*s) for name, s in sets.items()}
+    return dict(metrics=metrics, history=history, sets=sets, epochs=len(history["val"]))
+
+
+if __name__ == "__main__":
+    config_file = Path(sys.argv[1])
+    with open(config_file, "rb") as f:
+        config = tomllib.load(f)
+    cfg, target = config["model"], config["data"]["target"]
+
+    run = train(config, load())
+    metrics, history = run["metrics"], run["history"]
     for name, r in metrics.items():
         print(f"{name:5s}  MAE {r['MAE']:6.1f} ({r['MAE_pct']:4.1f}%)  R2 {r['R2']:.3f}")
 
@@ -111,7 +121,7 @@ if __name__ == "__main__":
     (out / "results.json").write_text(json.dumps(results, indent=2))
 
     fig, (ax, ax_loss) = plt.subplots(1, 2, figsize=(11, 5))
-    plot_predictions(ax, target, sets, metrics, f"MLP {cfg['hidden_layers']}")
+    plot_predictions(ax, target, run["sets"], metrics, f"MLP {cfg['hidden_layers']}")
     for name, values in history.items():
         ax_loss.plot(range(1, len(values) + 1), values, color=COLORS[name], lw=2, label=name)
     ax_loss.set(yscale="log", xlabel="Epoch", ylabel="Loss (scaled MSE, log)",
