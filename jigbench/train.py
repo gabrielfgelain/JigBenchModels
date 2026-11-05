@@ -83,6 +83,16 @@ if __name__ == "__main__":
             print(f"epoch {epoch:5d}   loss train {history['train'][-1]:.4f}   "
                   f"val {history['val'][-1]:.4f}", flush=True)
 
+        # Early stopping (optional): stop when the validation loss improved less than
+        # min_improvement (e.g. 1%) over the last `patience` epochs.
+        patience = cfg.get("patience")
+        if patience and epoch > patience:
+            if history["val"][-1] > (1 - cfg["min_improvement"]) * history["val"][-1 - patience]:
+                print(f"epoch {epoch:5d}   loss train {history['train'][-1]:.4f}   "
+                      f"val {history['val'][-1]:.4f}   (stopped: val improved less than "
+                      f"{100 * cfg['min_improvement']:.0f}% in {patience} epochs)", flush=True)
+                break
+
     # 4. Predictions back in mOhm and the same metrics as the baseline.
     def predict(d):
         x, _ = to_tensors(d)
