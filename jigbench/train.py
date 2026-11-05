@@ -19,7 +19,7 @@ from torch import nn
 from jigbench.baseline import COLORS, evaluate, load, plot_predictions
 from jigbench.features import OUTPUT_DIR
 
-ACTIVATIONS = {"relu": nn.ReLU, "sigmoid": nn.Sigmoid, "tanh": nn.Tanh}
+ACTIVATIONS = {"relu": nn.ReLU, "sigmoid": nn.Sigmoid, "tanh": nn.Tanh, "elu": nn.ELU, "selu": nn.SELU}
 
 
 def build_model(n_inputs: int, hidden_layers: list, activation: str) -> nn.Sequential:

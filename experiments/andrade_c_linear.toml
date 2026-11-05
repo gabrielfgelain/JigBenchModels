@@ -1,0 +1,16 @@
+# Comparison model of Andrade & Flesch (SPEC 2023): multiple linear regression with the
+# same 3 inputs. No hidden layer ([]), so the network is a single weighted sum.
+
+[data]
+target = "C_uF"
+features = ["Im_rms", "rpm", "Vdc_rms_ripple"]
+
+[model]
+hidden_layers = []        # no hidden layer = linear regression
+activation = "relu"       # unused without hidden layers
+learning_rate = 0.001
+weight_decay = 0.0
+batch_size = 200
+epochs = 1000
+print_every = 100
+seed = 2026

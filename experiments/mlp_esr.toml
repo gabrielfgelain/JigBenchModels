@@ -15,7 +15,7 @@ features = [
 
 [model]
 hidden_layers = [16]      # neurons per hidden layer: [16] = 1 layer, [32, 16] = 2 layers
-activation = "relu"       # relu, sigmoid or tanh
+activation = "relu"       # relu, sigmoid, tanh, elu or selu
 learning_rate = 0.001     # size of each weight adjustment
 weight_decay = 0.0001     # penalty on large weights (higher = smoother model)
 batch_size = 200          # tests per weight adjustment

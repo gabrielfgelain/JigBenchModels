@@ -1,0 +1,18 @@
+# Protocol of Andrade & Flesch (SPEC 2023): MLP with 3 inputs -> dc-link capacitance.
+# Inputs as in the paper: motor output current, output frequency (from rpm) and
+# rms ripple of the dc-link voltage. Best configuration of the paper: 1 hidden layer
+# with 16 neurons, ELU activation, Adam optimizer.
+
+[data]
+target = "C_uF"
+features = ["Im_rms", "rpm", "Vdc_rms_ripple"]
+
+[model]
+hidden_layers = [16]      # neurons per hidden layer: [16] = 1 layer, [32, 16] = 2 layers
+activation = "elu"        # relu, sigmoid, tanh, elu or selu
+learning_rate = 0.001     # size of each weight adjustment
+weight_decay = 0.0001     # penalty on large weights (higher = smoother model)
+batch_size = 200          # tests per weight adjustment
+epochs = 1000             # passes over the training set
+print_every = 100         # epochs between progress lines
+seed = 2026
