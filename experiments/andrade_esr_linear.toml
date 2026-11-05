@@ -1,0 +1,17 @@
+# Comparison for andrade_esr.toml: multiple linear regression with the same 3 inputs.
+
+[data]
+target = "ESR_mOhm"
+features = ["Im_rms", "rpm", "Asw_band"]
+
+[model]
+hidden_layers = []        # no hidden layer = linear regression
+activation = "elu"        # linear, relu, sigmoid, tanh, elu or selu
+learning_rate = 0.001     # size of each weight adjustment
+weight_decay = 0.0
+batch_size = 200          # tests per weight adjustment
+epochs = 20000            # maximum passes over the training set
+print_every = 500         # epochs between progress lines
+patience = 500            # early stopping as in the paper: stop when the validation
+min_improvement = 0.01    # loss improves less than 1% over the last 500 epochs
+seed = 2026

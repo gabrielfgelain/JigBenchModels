@@ -1,0 +1,19 @@
+# Andrade & Flesch (SPEC 2023) recipe applied to the ESR: same MLP and early stopping as
+# andrade_c.toml, with the switching ripple (~5 kHz band) in place of the total rms
+# ripple, since at the switching frequency the capacitor impedance is close to its ESR.
+
+[data]
+target = "ESR_mOhm"
+features = ["Im_rms", "rpm", "Asw_band"]
+
+[model]
+hidden_layers = [16]      # neurons per hidden layer: [16] = 1 layer, [32, 16] = 2 layers
+activation = "elu"        # linear, relu, sigmoid, tanh, elu or selu
+learning_rate = 0.001     # size of each weight adjustment
+weight_decay = 0.0001     # penalty on large weights (higher = smoother model)
+batch_size = 200          # tests per weight adjustment
+epochs = 20000            # maximum passes over the training set
+print_every = 500         # epochs between progress lines
+patience = 500            # early stopping as in the paper: stop when the validation
+min_improvement = 0.01    # loss improves less than 1% over the last 500 epochs
+seed = 2026
