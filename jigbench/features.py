@@ -83,7 +83,7 @@ def test_features(df: pd.DataFrame, rpm: int) -> dict:
     vm_rms = np.sqrt(np.mean(vm ** 2))
 
     return dict(
-        Vdc=vdc.mean(), Vdc_pp=np.ptp(vdc), A120=a120, A240=a240, A360=a360, A6f=a6f,
+        Vdc=vdc.mean(), Vdc_pp=np.ptp(vdc), Vdc_rms_ripple=np.std(vdc), A120=a120, A240=a240, A360=a360, A6f=a6f,
         Asw=asw, fsw=fsw, Asw_band=asw_band, HF_rms=hf_rms, I1=i1, V1=v1,
         Im_rms=im_rms, Vm_rms=vm_rms,
     )
